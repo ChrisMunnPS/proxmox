@@ -1,17 +1,19 @@
 #!/bin/bash
 # (¯`·¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`··´¯)
-# ( \                                / )
-# ( ) Docker + Portainer + Tailscale ( )
-# ( /                                \ )
-# (.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`·. )
-
+# Docker + Portainer + Tailscale (HTTPS via Tailscale certs)
+# (¯`·¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`··´¯)
 set -euo pipefail
 
 # === Parameters ===
-PORTAINER_VERSION="${PORTAINER_VERSION:-latest}"   # override with e.g. 2.21.0
-TAILNET_DOMAIN="shorthair-egret.ts.net"            # your tailnet domain
+PORTAINER_VERSION="${PORTAINER_VERSION:-latest}"
+TAILNET_DOMAIN="shorthair-egret.ts.net"          # Your tailnet name
 HOSTNAME="$(hostname)"
 CERT_DIR="/etc/tailscale/certs"
+
+# === Best practice: Use a pre-generated ephemeral/reusable key ===
+# Generate via: tailscale admin console → Settings → Keys → Create key
+# Recommended flags: --ephemeral --reusable --tag=tag:server --expire=2160h
+TAILSCALE_AUTHKEY="${TAILSCALE_AUTHKEY:-}"        # Set via env or secrets!
 
 # === System Update ===
 export DEBIAN_FRONTEND=noninteractive
@@ -30,15 +32,21 @@ systemctl enable docker && systemctl start docker
 
 # === Install Tailscale ===
 curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --ssh --accept-dns=false   # adjust flags as needed
 
-# === Fetch Tailscale Certificates ===
+# === Authenticate Tailscale (headless, no manual approval) ===
+if [[ -z "$TAILSCALE_AUTHKEY" ]]; then
+  echo "ERROR: TAILSCALE_AUTHKEY not set. Generate an ephemeral/reusable key with tags." >&2
+  exit 1
+fi
+tailscale up --authkey="${TAILSCALE_AUTHKEY}" --ssh --accept-dns=false --hostname="${HOSTNAME}"
+
+# === Fetch Tailscale LetsEncrypt certs ===
 mkdir -p "$CERT_DIR"
 tailscale cert "${HOSTNAME}.${TAILNET_DOMAIN}" \
   --cert-file "${CERT_DIR}/cert.pem" \
   --key-file "${CERT_DIR}/key.pem"
 
-# === Install Portainer with Tailscale Certs ===
+# === Run Portainer with Tailscale certs (HTTPS on 9443) ===
 docker volume create portainer_data
 docker run -d \
   -p 9443:9443 \
@@ -47,50 +55,47 @@ docker run -d \
   --restart=always \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data \
-  -v ${CERT_DIR}:/certs:ro \
+  -v "${CERT_DIR}":/certs:ro \
   portainer/portainer-ce:${PORTAINER_VERSION} \
   --sslcert /certs/cert.pem \
   --sslkey /certs/key.pem
 
-# === Setup Renewal Script ===
+# === Renewal script (idempotent, won't fail timer) ===
 cat << 'EOF' > /usr/local/bin/tailscale-cert-renew.sh
 #!/bin/bash
 set -euo pipefail
-
 CERT_DIR="/etc/tailscale/certs"
 HOSTNAME="$(hostname)"
 TAILNET_DOMAIN="shorthair-egret.ts.net"
 
+# Renew cert if expiring soon (fails gracefully if not needed yet)
 tailscale cert "${HOSTNAME}.${TAILNET_DOMAIN}" \
   --cert-file "${CERT_DIR}/cert.pem" \
-  --key-file "${CERT_DIR}/key.pem"
+  --key-file "${CERT_DIR}/key.pem" || true
 
-docker restart portainer
+# Reload Portainer to pick up new cert
+docker restart portainer || true
 EOF
-
 chmod +x /usr/local/bin/tailscale-cert-renew.sh
 
-# === Systemd Service ===
+# === Systemd timer for daily renewal ===
 cat << 'EOF' > /etc/systemd/system/tailscale-cert-renew.service
 [Unit]
-Description=Renew Tailscale certificates and reload Portainer
+Description=Renew Tailscale certs and restart Portainer
 After=network-online.target tailscaled.service
 Requires=tailscaled.service
-
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/tailscale-cert-renew.sh
 EOF
 
-# === Systemd Timer ===
 cat << 'EOF' > /etc/systemd/system/tailscale-cert-renew.timer
 [Unit]
-Description=Run Tailscale certificate renewal daily
-
+Description=Daily Tailscale cert renewal
 [Timer]
 OnCalendar=daily
 Persistent=true
-
+RandomizedDelaySec=5h
 [Install]
 WantedBy=timers.target
 EOF
@@ -98,7 +103,6 @@ EOF
 systemctl daemon-reload
 systemctl enable --now tailscale-cert-renew.timer
 
-# === Cleanup ===
+# === Final cleanup ===
 apt autoremove -y && apt clean
-
-echo "✅ Deployment complete: Docker, Portainer, and Tailscale certs installed with auto-renewal."
+echo "✅ Done. Access Portainer: https://${HOSTNAME}.${TAILNET_DOMAIN}:9443"
