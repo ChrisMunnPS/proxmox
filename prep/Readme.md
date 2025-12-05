@@ -57,6 +57,13 @@ https://login.tailscale.com/a/b6e60b7017319
 apt update && apt upgrade
 ```
 
+
+## 6. Get certificate
+
+```bash
+tailscale cert
+```
+
 ---
 
 ## Important Notes
