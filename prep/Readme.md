@@ -5,8 +5,7 @@
 Inside the container console, run:
 
 ```bash
-apt update
-apt upgrade
+apt update && apt upgrade
 apt install curl -y
 apt install sudo =y
 ```
