@@ -35,7 +35,9 @@ or
 shutdown -r now
 ```
 
-## 04. Start Tailscale
+## 04.
+
+## 05. Start Tailscale
 
 After the container reboots, run:
 
@@ -51,21 +53,38 @@ https://login.tailscale.com/a/b6e60b7017319
 
 **Note:** Your URL will be different. Copy and paste it into your browser to complete authentication.
 
-## 05. Final Update (Optional)
+## 06. Final Update (Optional)
 
 ```bash
 apt update && apt upgrade
 ```
 
 
-## 06. Get certificate
+## 07. Get certificate
 
 ```bash
 tailscale cert
 ```
 
 
-## 07. Allow SSH
+## 08. Allow SSH
+
+
+
+## 09:  Install docker (https://get.docker.com)
+
+```bash
+# Download Script
+curl -fsSL https://get.docker.com -o install-docker.sh
+
+# Verify the script's content
+#
+#   $ cat install-docker.sh
+#
+# run the script either as root, or using sudo to perform the installation.
+#
+sudo sh install-docker.sh
+```
 
 ---
 
