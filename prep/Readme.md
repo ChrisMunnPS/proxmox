@@ -8,6 +8,7 @@ Inside the container console, run:
 apt update
 apt upgrade
 apt install curl -y
+apt install sudo =y
 ```
 
 ## 2. Install Tailscale Addon
