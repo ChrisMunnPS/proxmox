@@ -1,108 +1,59 @@
-#!/bin/bash
-# (¯`·¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`··´¯)
-# Docker + Portainer + Tailscale (HTTPS via Tailscale certs)
-# (¯`·¯`·.¸¸.·´¯`·.¸¸.·´¯`·.¸¸.·´¯`··´¯)
-set -euo pipefail
+# Installing Tailscale on Proxmox LXC Container
 
-# === Parameters ===
-PORTAINER_VERSION="${PORTAINER_VERSION:-latest}"
-TAILNET_DOMAIN="shorthair-egret.ts.net"          # Your tailnet name
-HOSTNAME="$(hostname)"
-CERT_DIR="/etc/tailscale/certs"
+## 1. Prepare the Container
 
-# === Best practice: Use a pre-generated ephemeral/reusable key ===
-# Generate via: tailscale admin console → Settings → Keys → Create key
-# Recommended flags: --ephemeral --reusable --tag=tag:server --expire=2160h
-TAILSCALE_AUTHKEY="${TAILSCALE_AUTHKEY:-}"        # Set via env or secrets!
+Inside the container console, run:
 
-# === System Update ===
-export DEBIAN_FRONTEND=noninteractive
-apt update && apt upgrade -y
-
-# === Install Docker ===
-apt install -y ca-certificates curl gnupg lsb-release
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list
+```bash
 apt update
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-systemctl enable docker && systemctl start docker
+apt upgrade
+apt install curl -y
+```
 
-# === Install Tailscale ===
-curl -fsSL https://tailscale.com/install.sh | sh
+## 2. Install Tailscale Addon
 
-# === Authenticate Tailscale (headless, no manual approval) ===
-if [[ -z "$TAILSCALE_AUTHKEY" ]]; then
-  echo "ERROR: TAILSCALE_AUTHKEY not set. Generate an ephemeral/reusable key with tags." >&2
-  exit 1
-fi
-tailscale up --authkey="${TAILSCALE_AUTHKEY}" --ssh --accept-dns=false --hostname="${HOSTNAME}"
+**On the Proxmox host console**, run the following script:
 
-# === Fetch Tailscale LetsEncrypt certs ===
-mkdir -p "$CERT_DIR"
-tailscale cert "${HOSTNAME}.${TAILNET_DOMAIN}" \
-  --cert-file "${CERT_DIR}/cert.pem" \
-  --key-file "${CERT_DIR}/key.pem"
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/add-tailscale-lxc.sh)"
+```
 
-# === Run Portainer with Tailscale certs (HTTPS on 9443) ===
-docker volume create portainer_data
-docker run -d \
-  -p 9443:9443 \
-  -p 9000:9000 \
-  --name portainer \
-  --restart=always \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v portainer_data:/data \
-  -v "${CERT_DIR}":/certs:ro \
-  portainer/portainer-ce:${PORTAINER_VERSION} \
-  --sslcert /certs/cert.pem \
-  --sslkey /certs/key.pem
+- Select your target CT (container) from the menu
+- Wait for the installation to complete
 
-# === Renewal script (idempotent, won't fail timer) ===
-cat << 'EOF' > /usr/local/bin/tailscale-cert-renew.sh
-#!/bin/bash
-set -euo pipefail
-CERT_DIR="/etc/tailscale/certs"
-HOSTNAME="$(hostname)"
-TAILNET_DOMAIN="shorthair-egret.ts.net"
+## 3. Reboot the Container
 
-# Renew cert if expiring soon (fails gracefully if not needed yet)
-tailscale cert "${HOSTNAME}.${TAILNET_DOMAIN}" \
-  --cert-file "${CERT_DIR}/cert.pem" \
-  --key-file "${CERT_DIR}/key.pem" || true
+Inside the **container console**, run either:
 
-# Reload Portainer to pick up new cert
-docker restart portainer || true
-EOF
-chmod +x /usr/local/bin/tailscale-cert-renew.sh
+```bash
+reboot
+```
 
-# === Systemd timer for daily renewal ===
-cat << 'EOF' > /etc/systemd/system/tailscale-cert-renew.service
-[Unit]
-Description=Renew Tailscale certs and restart Portainer
-After=network-online.target tailscaled.service
-Requires=tailscaled.service
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/tailscale-cert-renew.sh
-EOF
+or
 
-cat << 'EOF' > /etc/systemd/system/tailscale-cert-renew.timer
-[Unit]
-Description=Daily Tailscale cert renewal
-[Timer]
-OnCalendar=daily
-Persistent=true
-RandomizedDelaySec=5h
-[Install]
-WantedBy=timers.target
-EOF
+```bash
+shutdown -r now
+```
 
-systemctl daemon-reload
-systemctl enable --now tailscale-cert-renew.timer
+## 4. Start Tailscale
 
-# === Final cleanup ===
-apt autoremove -y && apt clean
-echo "✅ Done. Access Portainer: https://${HOSTNAME}.${TAILNET_DOMAIN}:9443"
+After the container reboots, run:
+
+```bash
+tailscale up
+```
+
+You will be prompted to authenticate and will receive a URL that looks like this:
+
+```
+https://login.tailscale.com/a/b6e60b7017319
+```
+
+**Note:** Your URL will be different. Copy and paste it into your browser to complete authentication.
+
+## 5. Final Update (Optional)
+
+```bash
+apt update && apt upgrade
+```
+
