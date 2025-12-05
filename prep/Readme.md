@@ -1,6 +1,6 @@
 # Installing Tailscale on Proxmox LXC Container
 
-## 1. Prepare the Container
+## 01. Prepare the Container
 
 Inside the container console, run:
 
@@ -10,7 +10,7 @@ apt install curl -y
 apt install sudo =y
 ```
 
-## 2. Install Tailscale Addon
+## 02. Install Tailscale Addon
 
 **On the Proxmox host console**, run the following script:
 
@@ -21,7 +21,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/Proxmo
 - Select your target CT (container) from the menu
 - Wait for the installation to complete
 
-## 3. Reboot the Container
+## 03. Reboot the Container
 
 Inside the **container console**, run either:
 
@@ -35,7 +35,7 @@ or
 shutdown -r now
 ```
 
-## 4. Start Tailscale
+## 04. Start Tailscale
 
 After the container reboots, run:
 
@@ -51,18 +51,21 @@ https://login.tailscale.com/a/b6e60b7017319
 
 **Note:** Your URL will be different. Copy and paste it into your browser to complete authentication.
 
-## 5. Final Update (Optional)
+## 05. Final Update (Optional)
 
 ```bash
 apt update && apt upgrade
 ```
 
 
-## 6. Get certificate
+## 06. Get certificate
 
 ```bash
 tailscale cert
 ```
+
+
+## 07. Allow SSH
 
 ---
 
