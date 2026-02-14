@@ -1,4 +1,4 @@
-````md
+
 # 🔐 Proxmox + Tailscale TLS Certs for an LXC (n8n)
 
 ![Proxmox](https://img.shields.io/badge/Proxmox-ED5C2B?logo=proxmox&logoColor=white)
