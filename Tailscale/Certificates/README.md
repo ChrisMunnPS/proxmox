@@ -157,7 +157,7 @@ This is the easiest way to get HTTPS without managing cert files.
 Assuming n8n is listening on `127.0.0.1:5678`:
 
 ```bash
-tailscale serve -g http://127.0.0.1:5678
+tailscale serve -bg http://127.0.0.1:5678
 ```
 
 Check status:
