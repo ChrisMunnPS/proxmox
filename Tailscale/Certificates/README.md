@@ -311,7 +311,7 @@ pct restart 102
 pct enter 102
 curl -fsSL https://tailscale.com/install.sh | sh
 tailscale up --authkey tskey-... --hostname n8n
-tailscale serve https / http://127.0.0.1:5678
+tailscale serve -bg http://127.0.0.1:5678
 ```
 
 ---
