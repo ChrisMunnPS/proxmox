@@ -85,7 +85,7 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 Restart the container:
 
 ```bash
-pct restart 102
+pct reboot 102
 ```
 
 ✅ If you do NOT want to enable TUN, you can still run Tailscale later in userspace mode with `--tun=userspace-networking`.
