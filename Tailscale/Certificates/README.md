@@ -77,7 +77,6 @@ nano /etc/pve/lxc/102.conf
 Add:
 
 ```ini
-features: keyctl=1,nesting=1
 lxc.cgroup2.devices.allow: c 10:200 rwm
 lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 ```
